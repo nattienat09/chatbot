@@ -1,0 +1,10 @@
+the good ones are main5.go and index5.html
+
+replace session logic with middleware
+
+consider what to pass to the bot 
+
+add possibility to ask about every available product.
+// different enpoint ?
+
+after session is over create a summary of the users messages using chatgpt

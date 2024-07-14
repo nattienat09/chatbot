@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Review Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        #chat-container {
+            width: 100%;
+            max-width: 600px;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat {
+            flex-grow: 1;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+        .user {
+            background-color: #e0f7fa;
+            align-self: flex-end;
+        }
+        .bot {
+            background-color: #ffebee;
+            align-self: flex-start;
+        }
+        #input-container {
+            display: flex;
+        }
+        #message {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #send {
+            padding: 10px 20px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        #send:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat">
+		<div class="message bot">Hi! I'm your friendly tech review collector bot. Could you please share your thoughts on the {{.ProductName}} you recently bought from our shop?</div>
+        </div>
+        <div id="input-container">
+            <input type="text" id="message" placeholder="Type your review here...">
+            <button id="send">Send</button>
+        </div>
+    </div>
+    <script>
+        document.getElementById('send').addEventListener('click', async () => {
+            const message = document.getElementById('message').value;
+            if (!message) return;
+
+            const chat = document.getElementById('chat');
+            const userMessage = document.createElement('div');
+            userMessage.className = 'message user';
+            userMessage.textContent = message;
+            chat.appendChild(userMessage);
+            document.getElementById('message').value = '';
+
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message }),
+            });
+
+            const data = await response.json();
+            const botMessage = document.createElement('div');
+            botMessage.className = 'message bot';
+            botMessage.textContent = data.response;
+            chat.appendChild(botMessage);
+
+            chat.scrollTop = chat.scrollHeight;
+        });
+    </script>
+</body>
+</html>
