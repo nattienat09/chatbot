@@ -42,6 +42,18 @@ type Session struct {
 
 
 var mu sync.Mutex
+const PROMPT_BEFORE_REVIEW = `You are a review chatbot you must ask the customer for a review of the %s they purchased from my shop recently. you will ask them to provide a review in the form of a number from 1 to 5. Do not greet the user with hello. Jump straight to the review process. Persist until they give you a 1 to 5 rating. Keep asking for it.
+
+                                        Be friendly and helpful in your interactions.
+
+                                        Feel free to ask customers about their preferences, recommend products, and inform them about any ongoing promotions.
+                                        do not answer any question irrelevant to the %s politely return to the topic of the product review. I am also providing you a history of the chat.
+
+                                        Make the shopping experience enjoyable and encourage customers to reach out if they have any questions or need assistance. If you have already collected a review from the user do not ask for another one.`
+
+const PROMPT_AFTER_REVIEW = `you just received a review for the %s.react accordingly to the review you received. Thank the user and don't forget to ask them specifics about their review. What they liked and what they didn't like. Be friendly and helpful in your interactions. Provide any other info they may ask about the %s. 
+                                        Never ask for a review again !!! If the user does not want to give any more comments then thank them and say bye.`
+
 
 func ChatHandler(client *openai.Client, productId int, customerId int, session *Session) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -89,14 +101,7 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
 			messages = append([]openai.ChatCompletionMessage{
 				{
 					Role:    "system",
-					Content: fmt.Sprintf(`You are a review chatbot you must ask the customer for a review of the %s they purchased from my shop recently. you will ask them to provide a review in the form of a number from 1 to 5. Do not greet the user with hello. Jump straight to the review process. Persist until they give you a 1 to 5 rating. Keep asking for it.
-
-					Be friendly and helpful in your interactions.
-
-					Feel free to ask customers about their preferences, recommend products, and inform them about any ongoing promotions.
-					do not answer any question irrelevant to the %s politely return to the topic of the product review. I am also providing you a history of the chat.
-
-					Make the shopping experience enjoyable and encourage customers to reach out if they have any questions or need assistance. If you have already collected a review from the user do not ask for another one.`, productName, productName),
+					Content: fmt.Sprintf(PROMPT_BEFORE_REVIEW, productName, productName),
 				},
 			}, openai.ChatCompletionMessage{
                         Role:    "user",
@@ -119,8 +124,7 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
 			messages = append([]openai.ChatCompletionMessage{
 				{
 					Role:    "system",
-					Content: fmt.Sprintf(`you just received a review for the %s.react accordingly to the review you received. Thank the user and don't forget to ask them specifics about their review. What they liked and what they didn't like. Be friendly and helpful in your interactions. Provide any other info they may ask about the %s. 
-					Never ask for a review again !!! If the user does not want to give any more comments then thank them and say bye.`, productName),
+					Content: fmt.Sprintf(PROMPT_AFTER_REVIEW, productName),
 				},
 			}, openai.ChatCompletionMessage{
                         Role:    "user",
@@ -130,8 +134,7 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
 			messages = append([]openai.ChatCompletionMessage{
                                 {
                                         Role:    "system",
-                                        Content: fmt.Sprintf(`you just received a review for the %s.react accordingly to the review you received. Thank the user and don't forget to ask them specifics about their review. What they liked and what they didn't like. Be friendly and helpful in your interactions. Provide any other info they may ask about the %s.
-                                         Never ask for a review again !!!! Never ask for a review again !!! If the user does not want to give any more comments then thank them and say bye.`,productName),
+                                        Content: fmt.Sprintf(PROMPT_AFTER_REVIEW,productName),
                                 },
                         }, openai.ChatCompletionMessage{
                         Role:    "user",
