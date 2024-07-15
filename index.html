@@ -16,7 +16,7 @@
             height: 100vh;
             background-color: #f0f0f0;
         }
-        #chat-container {
+        #form-container, #chat-container {
             width: 100%;
             max-width: 600px;
             background: #fff;
@@ -25,6 +25,9 @@
             border-radius: 10px;
             display: flex;
             flex-direction: column;
+        }
+        #chat-container {
+            display: none;
         }
         #chat {
             flex-grow: 1;
@@ -72,16 +75,59 @@
     </style>
 </head>
 <body>
+    <div id="form-container">
+        <h2>Confirm Delivery</h2>
+        <input type="text" id="customerId" placeholder="Customer ID">
+        <input type="text" id="productId" placeholder="Product ID">
+        <button id="confirmDelivery">Confirm Delivery</button>
+    </div>
     <div id="chat-container">
-        <div id="chat">
-		<div class="message bot">Hi! I'm your friendly tech review collector bot. Could you please share your thoughts on the {{.ProductName}} you recently bought from our shop?</div>
-        </div>
+        <div id="chat"></div>
         <div id="input-container">
             <input type="text" id="message" placeholder="Type your review here...">
             <button id="send">Send</button>
         </div>
     </div>
     <script>
+        document.getElementById('confirmDelivery').addEventListener('click', async () => {
+            const customerId = parseInt(document.getElementById('customerId').value);
+            const productId = parseInt(document.getElementById('productId').value);
+
+            if (!customerId || !productId) {
+                alert('Please enter both Customer ID and Product ID.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/confirmDelivery', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ customerId, productId }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to confirm delivery.');
+                }
+
+                const data = await response.json();
+                const productName = data.productName;
+
+                document.getElementById('form-container').style.display = 'none';
+                document.getElementById('chat-container').style.display = 'flex';
+
+                const chat = document.getElementById('chat');
+                const botMessage = document.createElement('div');
+                botMessage.className = 'message bot';
+                botMessage.textContent = `Hi! I'm your friendly tech review collector bot. Could you please share your thoughts on the ${productName} you recently bought from our shop?;`
+                chat.appendChild(botMessage);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred during confirmation. Please try again.');
+            }
+        });
+
         document.getElementById('send').addEventListener('click', async () => {
             const message = document.getElementById('message').value;
             if (!message) return;
@@ -93,21 +139,30 @@
             chat.appendChild(userMessage);
             document.getElementById('message').value = '';
 
-            const response = await fetch('/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ message }),
-            });
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                });
 
-            const data = await response.json();
-            const botMessage = document.createElement('div');
-            botMessage.className = 'message bot';
-            botMessage.textContent = data.response;
-            chat.appendChild(botMessage);
+                if (!response.ok) {
+                    throw new Error('Failed to send message.');
+                }
 
-            chat.scrollTop = chat.scrollHeight;
+                const data = await response.json();
+                const botMessage = document.createElement('div');
+                botMessage.className = 'message bot';
+                botMessage.textContent = data.response;
+                chat.appendChild(botMessage);
+
+                chat.scrollTop = chat.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while sending the message. Please try again.');
+            }
         });
     </script>
 </body>

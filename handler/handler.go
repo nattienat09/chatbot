@@ -23,18 +23,41 @@ type ChatResponse struct {
 
 
 func addMessageToSession(session *sessions.Session, message openai.ChatCompletionMessage) {
-	history := session.Values["chat_history"].([]openai.ChatCompletionMessage)
-	session.Values["chat_history"] = append(history, message)
+    history := getMessagesFromSession(session)
+    history = append(history, message)
+
+    // Convert history to JSON bytes
+    jsonBytes, err := json.Marshal(history)
+    if err != nil {
+        log.Printf("Failed to marshal chat history: %v\n", err)
+        return
+    }
+
+    // Save JSON bytes to session
+    session.Values["chat_history"] = jsonBytes
+}
+
+func getMessagesFromSession(session *sessions.Session) []openai.ChatCompletionMessage {
+    var history []openai.ChatCompletionMessage
+
+    // Retrieve JSON bytes from session
+    jsonBytes, ok := session.Values["chat_history"].([]byte)
+    if !ok {
+        return history
+    }
+
+    // Unmarshal JSON bytes to []openai.ChatCompletionMessage
+    err := json.Unmarshal(jsonBytes, &history)
+    if err != nil {
+        log.Printf("Failed to unmarshal chat history: %v\n", err)
+    }
+
+    return history
 }
 
 func reviewHasBeenCollected(session *sessions.Session) {
 	session.Values["review_collected"] = true
 }
-
-func getMessagesFromSession(session *sessions.Session) []openai.ChatCompletionMessage{
-	return session.Values["chat_history"].([]openai.ChatCompletionMessage)
-}
-
 
 var mu sync.Mutex
 const PROMPT_BEFORE_REVIEW = `You are a review chatbot you must ask the customer for a review of the %s they purchased from my shop recently. you will ask them to provide a review in the form of a number from 1 to 5. Do not greet the user with hello. Jump straight to the review process. Persist until they give you a 1 to 5 rating. Keep asking for it.
@@ -50,20 +73,27 @@ const PROMPT_AFTER_REVIEW = `you just received a review for the %s.react accordi
                                         Never ask for a review again !!! If the user does not want to give any more comments then thank them and say bye.`
 
 
-func ChatHandler(client *openai.Client, productId int, customerId int) http.HandlerFunc {
+func ChatHandler(client *openai.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//figure out how to send the first message
-		session, _ := session.Store.Get(r, "chatbot-session")
+		session, err := session.Store.Get(r, "chatbot-session")
+		if err != nil {
+			http.Error(w, "Error retrieving session", http.StatusInternalServerError)
+			return
+		}
+
 		var chatRequest ChatRequest
 		var messages []openai.ChatCompletionMessage
+
 		if err := json.NewDecoder(r.Body).Decode(&chatRequest); err != nil {
 			http.Error(w, "Invalid request payload", http.StatusBadRequest)
 			log.Printf("Invalid request payload: %v\n", err)
 			return
 		}
-		// Generate a unique session ID for each user (you can use cookies or custom session IDs)
-		//session := session.Store.Get(r, "chatbot-session")
-		productName, err := dbUtils.GetProductNameFromProductId(productId)
+
+		customerId := session.Values["customer_id"].(int)
+		productId := session.Values["product_id"].(int)
+		productName := session.Values["product_name"].(string)
 		if err != nil {
 			log.Printf("Failed to get product name: %v\n", err)
 			http.Error(w, "Failed to get product name", http.StatusInternalServerError)
