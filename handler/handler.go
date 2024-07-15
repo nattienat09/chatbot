@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"sync"
 "chatbot/db"
+"chatbot/session"
 	"chatbot/analyzer"
+	"github.com/gorilla/sessions"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -20,24 +22,17 @@ type ChatResponse struct {
 }
 
 
-func addMessageToSession(session *Session, message openai.ChatCompletionMessage) {
-	session.Messages = append(session.Messages, message)
+func addMessageToSession(session *sessions.Session, message openai.ChatCompletionMessage) {
+	history := session.Values["chat_history"].([]openai.ChatCompletionMessage)
+	session.Values["chat_history"] = append(history, message)
 }
 
-func reviewHasBeenCollected(session *Session) {
-	session.ReviewCollected = true
+func reviewHasBeenCollected(session *sessions.Session) {
+	session.Values["review_collected"] = true
 }
 
-func getMessagesFromSession(session *Session) []openai.ChatCompletionMessage{
-	return session.Messages
-}
-
-
-type Session struct {
-	FirstStarted bool
-        UserId int
-        Messages []openai.ChatCompletionMessage
-	ReviewCollected bool
+func getMessagesFromSession(session *sessions.Session) []openai.ChatCompletionMessage{
+	return session.Values["chat_history"].([]openai.ChatCompletionMessage)
 }
 
 
@@ -55,9 +50,10 @@ const PROMPT_AFTER_REVIEW = `you just received a review for the %s.react accordi
                                         Never ask for a review again !!! If the user does not want to give any more comments then thank them and say bye.`
 
 
-func ChatHandler(client *openai.Client, productId int, customerId int, session *Session) http.HandlerFunc {
+func ChatHandler(client *openai.Client, productId int, customerId int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//figure out how to send the first message
+		session, _ := session.Store.Get(r, "chatbot-session")
 		var chatRequest ChatRequest
 		var messages []openai.ChatCompletionMessage
 		if err := json.NewDecoder(r.Body).Decode(&chatRequest); err != nil {
@@ -66,7 +62,7 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
 			return
 		}
 		// Generate a unique session ID for each user (you can use cookies or custom session IDs)
-		//sessionID := r.Header.Get("Session-ID")
+		//session := session.Store.Get(r, "chatbot-session")
 		productName, err := dbUtils.GetProductNameFromProductId(productId)
 		if err != nil {
 			log.Printf("Failed to get product name: %v\n", err)
@@ -86,9 +82,9 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
                 })
 
 
-		fmt.Printf("review collected %v\n",session.ReviewCollected)
-		if session.ReviewCollected == false {
-			fmt.Printf("i clearly have not got a review\n", session.ReviewCollected)
+		fmt.Printf("review collected %v\n",session.Values["review_collected"])
+		if session.Values["review_collected"] == false {
+			fmt.Printf("i clearly have not got a review\n", session.Values["review_collected"])
 		messageAnalysis, err := analyzer.AnalyzeMessages(client, userMessages, productName)
 		if err != nil {
 			log.Printf("Message analysis error: %v\n", err)
@@ -109,7 +105,7 @@ func ChatHandler(client *openai.Client, productId int, customerId int, session *
                 })
 			//userMessages...) //do i really need to pass it everything
 		} else {
-			if session.ReviewCollected == false {
+			if session.Values["review_collected"] == false {
 				err := dbUtils.SaveCustomerRating(productId, customerId, messageAnalysis.Review)
 				if err != nil {
 					log.Printf("Couldn't save user review to db: %v\n", err)
